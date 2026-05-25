@@ -1,0 +1,160 @@
+version: "3.8"
+
+services:
+  # ===================== CODE QUALITY =====================
+  sonarqube:
+    image: sonarqube:community
+    container_name: secops-sonarqube
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+    networks:
+      - secops
+
+  # ===================== SCA DASHBOARD =====================
+  dependency-track:
+    image: dependencytrack/apiserver:latest
+    container_name: secops-dtrack-api
+    ports:
+      - "8081:8080"
+    volumes:
+      - dtrack_data:/data
+    networks:
+      - secops
+
+  dependency-track-frontend:
+    image: dependencytrack/frontend:latest
+    container_name: secops-dtrack-frontend
+    ports:
+      - "8080:8080"
+    environment:
+      - API_BASE_URL=http://localhost:8081
+    depends_on:
+      - dependency-track
+    networks:
+      - secops
+
+  # ===================== DAST =====================
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    container_name: secops-zap
+    ports:
+      - "8090:8080"
+    command: zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true -config api.disablekey=true
+    networks:
+      - secops
+
+  # ===================== DEFECTDOJO =====================
+  defectdojo-db:
+    image: postgres:16-alpine
+    container_name: secops-defectdojo-db
+    environment:
+      POSTGRES_DB: defectdojo
+      POSTGRES_USER: defectdojo
+      POSTGRES_PASSWORD: defectdojo
+    volumes:
+      - defectdojo_db:/var/lib/postgresql/data
+    networks:
+      - secops
+
+  defectdojo-rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: secops-defectdojo-rabbitmq
+    networks:
+      - secops
+
+  defectdojo:
+    image: defectdojo/defectdojo-django:latest
+    container_name: secops-defectdojo
+    ports:
+      - "8888:8080"
+    environment:
+      DD_DATABASE_ENGINE: django.db.backends.postgresql
+      DD_DATABASE_HOST: defectdojo-db
+      DD_DATABASE_PORT: "5432"
+      DD_DATABASE_NAME: defectdojo
+      DD_DATABASE_USER: defectdojo
+      DD_DATABASE_PASSWORD: defectdojo
+      DD_CELERY_BROKER_URL: amqp://guest:guest@defectdojo-rabbitmq:5672//
+      DD_SECRET_KEY: secops-defectdojo-secret-key-change-me
+      DD_CREDENTIAL_AES_256_KEY: secops-aes-key-change-me-32chars!
+      DD_INITIALIZE: "true"
+      DD_ADMIN_USER: admin
+      DD_ADMIN_PASSWORD: admin
+      DD_ADMIN_MAIL: admin@secops.local
+    depends_on:
+      - defectdojo-db
+      - defectdojo-rabbitmq
+    networks:
+      - secops
+
+  defectdojo-celery-beat:
+    image: defectdojo/defectdojo-django:latest
+    container_name: secops-defectdojo-celery-beat
+    command: celery --app dojo beat --loglevel INFO
+    environment:
+      DD_DATABASE_ENGINE: django.db.backends.postgresql
+      DD_DATABASE_HOST: defectdojo-db
+      DD_DATABASE_PORT: "5432"
+      DD_DATABASE_NAME: defectdojo
+      DD_DATABASE_USER: defectdojo
+      DD_DATABASE_PASSWORD: defectdojo
+      DD_CELERY_BROKER_URL: amqp://guest:guest@defectdojo-rabbitmq:5672//
+      DD_SECRET_KEY: secops-defectdojo-secret-key-change-me
+      DD_CREDENTIAL_AES_256_KEY: secops-aes-key-change-me-32chars!
+    depends_on:
+      - defectdojo-db
+      - defectdojo-rabbitmq
+    networks:
+      - secops
+
+  defectdojo-celery-worker:
+    image: defectdojo/defectdojo-django:latest
+    container_name: secops-defectdojo-celery-worker
+    command: celery --app dojo worker --loglevel INFO
+    environment:
+      DD_DATABASE_ENGINE: django.db.backends.postgresql
+      DD_DATABASE_HOST: defectdojo-db
+      DD_DATABASE_PORT: "5432"
+      DD_DATABASE_NAME: defectdojo
+      DD_DATABASE_USER: defectdojo
+      DD_DATABASE_PASSWORD: defectdojo
+      DD_CELERY_BROKER_URL: amqp://guest:guest@defectdojo-rabbitmq:5672//
+      DD_SECRET_KEY: secops-defectdojo-secret-key-change-me
+      DD_CREDENTIAL_AES_256_KEY: secops-aes-key-change-me-32chars!
+    depends_on:
+      - defectdojo-db
+      - defectdojo-rabbitmq
+    networks:
+      - secops
+
+  # ===================== VAULT =====================
+  vault:
+    image: hashicorp/vault:latest
+    container_name: secops-vault
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: secops-dev-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - vault_data:/vault/file
+    networks:
+      - secops
+
+volumes:
+  sonarqube_data:
+  sonarqube_logs:
+  dtrack_data:
+  defectdojo_db:
+  vault_data:
+
+networks:
+  secops:
+    driver: bridge
