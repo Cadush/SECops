@@ -1,0 +1,45 @@
+#!/bin/bash
+# SecOps pre-commit hook
+# Instalar: cp scripts/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+
+echo "[SecOps] Pre-commit security checks..."
+
+FAILED=0
+
+# Gitleaks (staged files)
+echo "[1/3] Gitleaks..."
+docker run --rm -v "$(pwd):/src" zricethezav/gitleaks:latest protect --source /src --staged 2>/dev/null
+if [ $? -ne 0 ]; then
+  echo "Secrets detectados! Commit bloqueado."
+  FAILED=1
+fi
+
+# Semgrep (staged files only)
+echo "[2/3] Semgrep (quick)..."
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(py|js|ts|go|java|rb|php)$')
+if [ -n "$STAGED" ]; then
+  # Converter paths relativos para /src/path dentro do container
+  CONTAINER_PATHS=$(echo "$STAGED" | sed 's|^|/src/|' | tr '\n' ' ')
+  docker run --rm -v "$(pwd):/src" semgrep/semgrep:latest \
+    semgrep scan --config auto --severity ERROR --error $CONTAINER_PATHS 2>/dev/null
+  if [ $? -ne 0 ]; then
+    echo "Vulnerabilidades críticas encontradas!"
+    FAILED=1
+  fi
+fi
+
+# Audit .env
+echo "[3/3] Verificando .env..."
+if git diff --cached --name-only | grep -qE '\.env$|\.env\.'; then
+  echo "Tentativa de commitar arquivo .env!"
+  FAILED=1
+fi
+
+if [ $FAILED -ne 0 ]; then
+  echo ""
+  echo "Commit bloqueado por falhas de segurança."
+  echo "   Use 'git commit --no-verify' para ignorar (não recomendado)."
+  exit 1
+fi
+
+echo "Checks passaram."
