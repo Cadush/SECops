@@ -1,0 +1,57 @@
+rules:
+  - id: sqli-string-concat
+    patterns:
+      - pattern-either:
+          - pattern: execute($X + ...)
+          - pattern: execute(f"...{$X}...")
+          - pattern: execute("..." % $X)
+          - pattern: execute("...".format($X))
+          - pattern: cursor.execute($X + ...)
+          - pattern: db.query($X + ...)
+    message: "Possível SQL Injection via concatenação de string"
+    severity: ERROR
+    languages: [python, javascript, typescript]
+
+  - id: sqli-raw-query
+    patterns:
+      - pattern-either:
+          - pattern: raw($X + ...)
+          - pattern: RawSQL($X + ...)
+    message: "Query SQL raw com input dinâmico"
+    severity: ERROR
+    languages: [python]
+
+  - id: xss-innerhtml
+    patterns:
+      - pattern-either:
+          - pattern: $X.innerHTML = $Y
+          - pattern: document.write($Y)
+    message: "Possível XSS via innerHTML/document.write"
+    severity: WARNING
+    languages: [javascript, typescript]
+
+  - id: xss-react-dangerously
+    pattern: dangerouslySetInnerHTML={{__html: $X}}
+    message: "Possível XSS via dangerouslySetInnerHTML"
+    severity: WARNING
+    languages: [javascript, typescript]
+
+  - id: xss-template-unescaped
+    patterns:
+      - pattern-either:
+          - pattern: "| safe"
+          - pattern: mark_safe($X)
+    message: "Output sem escape em template"
+    severity: WARNING
+    languages: [python]
+
+  - id: hardcoded-secret
+    patterns:
+      - pattern-either:
+          - pattern: password = "..."
+          - pattern: api_key = "..."
+          - pattern: secret = "..."
+          - pattern: token = "..."
+    message: "Secret hardcoded no código"
+    severity: ERROR
+    languages: [python, javascript, typescript, java, go]
