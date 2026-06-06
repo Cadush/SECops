@@ -10,9 +10,10 @@ SOURCE="${1:?Uso: $0 <repo_path> [--output <dir>] [--provider <openai|ollama|bed
 SOURCE="$(realpath "$SOURCE")"
 OUTPUT=""
 PROVIDER="${LEGACY_DOC_PROVIDER:-openai}"
-API_KEY="${OPENAI_API_KEY:-${BEDROCK_API_KEY:-}}"
+API_KEY="${OPENAI_API_KEY:-${BEDROCK_API_KEY:-${OPENROUTER_API_KEY:-}}}"
 OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
 MODEL="${LEGACY_DOC_MODEL:-gpt-4o-mini}"
+OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-}"
 
 shift || true
 while [[ $# -gt 0 ]]; do
@@ -48,6 +49,21 @@ call_llm() {
       fi
       curl -s https://api.openai.com/v1/chat/completions \
         -H "Authorization: Bearer $API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "$(jq -n --arg model "$MODEL" --arg prompt "$prompt" '{
+          model: $model,
+          messages: [{role: "user", content: $prompt}],
+          temperature: 0.2
+        }')" | jq -r '.choices[0].message.content' > "$output_file"
+      ;;
+
+    openrouter)
+      if [[ -z "$OPENROUTER_API_KEY" ]]; then
+        echo "  [ERRO] OPENROUTER_API_KEY nao definida" >&2
+        return 1
+      fi
+      curl -s https://openrouter.ai/api/v1/chat/completions \
+        -H "Authorization: Bearer $OPENROUTER_API_KEY" \
         -H "Content-Type: application/json" \
         -d "$(jq -n --arg model "$MODEL" --arg prompt "$prompt" '{
           model: $model,

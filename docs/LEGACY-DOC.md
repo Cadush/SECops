@@ -99,10 +99,51 @@ bash scripts/legacy-doc.sh ./codigo-legado --output ./minha-doc --provider opena
 | Provider | Modelo default | Custo | Qualidade |
 |---|---|---|---|
 | openai | gpt-4o-mini | ~$0.01 por projeto | Alta |
+| openrouter | moonshotai/kimi-k2.6 | Variavel | Alta |
 | ollama | llama3.1 | Gratis (local) | Media-Alta |
 | bedrock | claude-3-haiku | ~$0.005 por projeto | Alta |
 
 Para projetos grandes, gpt-4o ou claude-3-sonnet produzem resultacao melhor mas custam mais (~$0.10 por projeto).
+
+---
+
+## Integracao com oh-my-openagent
+
+O projeto inclui uma config pronta para o oh-my-openagent em `config/oh-my-openagent.json`. Ele usa um sistema de agentes especializados via OpenRouter:
+
+| Agente | Modelo | Funcao |
+|---|---|---|
+| sisyphus | kimi-k2.6 | Orquestrador principal, delega tarefas |
+| hephaestus | kimi-k2.6 | Escreve e refatora codigo |
+| librarian | kimi-k2.6 | Le documentacao e extrai insights |
+| explore | glm-5.1 | Mapeia estrutura de arquivos |
+| prometheus | qwen3.5-397b | Cria planos de execucao |
+| atlas | qwen3.5-397b | Valida implementacoes |
+| oracle | glm-5.1 | Responde questoes tecnicas |
+| momus | minimax-m2.7 | Advogado do diabo, encontra edge cases |
+
+Para usar:
+
+```bash
+# Instalar oh-my-openagent
+pip install oh-my-openagent
+
+# Copiar config
+cp config/oh-my-openagent.json .oh-my-openagent.json
+
+# Definir chave OpenRouter
+export OPENROUTER_API_KEY=sk-or-xxx
+
+# Usar para documentar codigo legado
+oh-my-openagent "Documente este projeto: explique arquitetura, funcoes principais, endpoints e riscos de seguranca"
+```
+
+O fluxo do oh-my-openagent e:
+1. explore - mapeia a estrutura do workspace
+2. librarian - le e analisa o codigo
+3. prometheus - cria plano de documentacao
+4. hephaestus - gera os arquivos .md
+5. atlas - valida se a documentacao esta completa
 
 ---
 
@@ -111,6 +152,7 @@ Para projetos grandes, gpt-4o ou claude-3-sonnet produzem resultacao melhor mas 
 | Variavel | Descricao | Default |
 |---|---|---|
 | OPENAI_API_KEY | API key da OpenAI | (obrigatorio se provider=openai) |
+| OPENROUTER_API_KEY | API key do OpenRouter | (obrigatorio se provider=openrouter) |
 | LEGACY_DOC_PROVIDER | Provider LLM | openai |
 | LEGACY_DOC_MODEL | Modelo a usar | gpt-4o-mini |
 | OLLAMA_URL | URL do Ollama | http://localhost:11434 |
