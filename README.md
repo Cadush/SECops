@@ -9,7 +9,7 @@ Todos os direitos reservados a Carlos Eduardo.
 ## O que faz
 
 ```
-Repositorio --> SecOps Pipeline --> Relatorio HTML + JSON
+Repositorio --> SecOps Pipeline --> Relatorio HTML + JSON + DefectDojo
 ```
 
 O pipeline analisa codigo em **6 camadas**:
@@ -23,11 +23,29 @@ O pipeline analisa codigo em **6 camadas**:
 | DAST | Vulnerabilidades em app rodando | OWASP ZAP, Nuclei, Nikto, sqlmap |
 | Quality | Code smells, bugs, duplicacao | SonarQube |
 
+Alem do pipeline de scan, o projeto inclui:
+
+- **Dependency Audit** - analise profunda de libs com Snyk, OWASP Dependency-Check, npm audit, Dependabot
+- **Legacy Doc** - documentacao automatica de codigo legado usando LLM (Ollama local, open source)
+- **DefectDojo** - dashboard centralizado que agrega todos os findings com tracking ao longo do tempo
+- **Vault + SOPS** - gerenciamento de secrets (nao so detectar, mas proteger)
+- **Deploy EC2** - servidor centralizado para equipes
+
+---
+
+## Dashboards
+
+| Servico | URL | Credenciais |
+|---|---|---|
+| DefectDojo | http://localhost:8888 | admin / admin |
+| SonarQube | http://localhost:9000 | admin / admin |
+| Dependency-Track | http://localhost:8080 | (setup inicial) |
+| Vault | http://localhost:8200 | token: secops-dev-token |
+| ZAP API | http://localhost:8090 | - |
+
 ---
 
 ## Quick Start
-
-Existem duas formas de usar o SECops:
 
 ### Opcao 1: Container unico (recomendado)
 
@@ -81,125 +99,60 @@ make down
 | `make down` | Para infraestrutura |
 | `make pull` | Baixa todas as imagens Docker |
 | `make status` | Mostra status dos containers |
-| `make report DIR=reports/<ts>` | Regenera relatorio HTML de um scan anterior |
-| `make clear` | Remove TODOS os dados Docker (libera ~15GB) |
+| `make dep-audit REPO=<path>` | Analise profunda de dependencias |
+| `make dep-audit-build` | Constroi imagem do dep-audit para CI |
+| `make dep-audit-docker REPO=<path>` | Dep-audit via container unico |
+| `make legacy-doc REPO=<path>` | Documenta codigo legado com LLM |
+| `make ollama-setup` | Instala Ollama + modelos open source |
+| `make ollama-up` | Sobe Ollama em container Docker |
+| `make scan-remote REPO=<path> SERVER=<ip>` | Scan remoto (envia para EC2) |
 | `make vault-setup` | Configura HashiCorp Vault |
 | `make sops-setup` | Configura SOPS + age para encriptacao |
+| `make report DIR=reports/<ts>` | Regenera relatorio HTML de um scan anterior |
+| `make clear` | Remove TODOS os dados Docker (libera ~15GB) |
 
 ---
 
-## Resultado esperado
+## Dependency Audit (analise de libs)
 
-Apos executar `make scan-docker REPO=./test-vulnerable-app` ou `make scan REPO=./test-vulnerable-app`, o pipeline gera:
-
-```
-reports/20260525_093216/
-├── report.html            <-- Relatorio visual (abrir no navegador)
-├── audit-config.json      # .env expostos, .gitignore, chaves privadas
-├── gitleaks.json          # Secrets no historico git
-├── trufflehog.json        # Secrets no filesystem
-├── semgrep.json           # SAST (XSS, SQLi, RCE)
-├── bandit.json            # SAST Python
-├── trivy-fs.json          # SCA (CVEs em dependencias)
-├── grype.json             # SCA
-├── syft-sbom.json         # SBOM (inventario de dependencias)
-├── osv-scanner.json       # CVEs (Google OSV database)
-├── checkov.json           # IaC (Terraform, Dockerfile)
-├── hadolint-Dockerfile.txt # Lint de Dockerfile
-└── ...
-```
-
-### Relatorio HTML
-
-O relatorio HTML inclui:
-
-- Grafico de pizza com distribuicao de severidades (Critical, High, Medium, Low)
-- Data do scan e usuario que executou
-- Secao de Configuracao e Secrets Expostos (com arquivo e linha)
-- Secao SAST com vulnerabilidades no codigo (SQLi, Command Injection, etc.)
-- Secao SCA com CVEs em dependencias (pacote, versao, fix disponivel)
-- Secao de Secrets detectados (TruffleHog, Gitleaks)
-- Secao de Container (Hadolint)
-- Secao de IaC (Checkov)
-- Botao para exportar como PDF
-
-### Exemplo de resultado (test-vulnerable-app)
-
-| Metrica | Valor |
-|---|---|
-| Total de findings | 131 |
-| Critical | 12 |
-| High | 48 |
-| Medium | 57 |
-| Low | 14 |
-
-Ferramentas que detectaram problemas:
-
-- **Bandit**: 18 findings (SQLi, Command Injection, hardcoded passwords, debug=True, pickle, MD5)
-- **Trivy**: 98 CVEs em dependencias (django, cryptography, pillow, urllib3, werkzeug, jinja2)
-- **TruffleHog**: 3 secrets (Stripe key, Slack webhook, MongoDB URI)
-- **Hadolint**: 3 findings (tag latest, versoes nao fixadas, pacotes extras)
-- **Audit-config**: 15 findings (.env exposto, chave privada, SQLi com linha exata)
-
----
-
-## Exportar PDF
-
-1. Abra o `report.html` no navegador
-2. Clique no botao "Exportar PDF"
-3. No dialogo de impressao, selecione "Salvar como PDF"
-4. O PDF gerado pode ser armazenado para auditoria
-
----
-
-## Limpeza
-
-Quando terminar de usar, libere espaco em disco:
+Ferramenta dedicada para revisao profunda de dependencias. Roda localmente ou em CI/CD.
 
 ```bash
-make clear
+# Scan basico (open source)
+make dep-audit REPO=./meu-projeto
+
+# Com Snyk (monitoramento + fix PRs)
+make dep-audit REPO=./meu-projeto SNYK_TOKEN=xxx
+
+# Via container (para pipelines)
+make dep-audit-build
+make dep-audit-docker REPO=./meu-projeto FAIL_ON=high
 ```
 
-Remove todos os containers, volumes e imagens (~15GB liberados). Para usar novamente, execute `make build` ou `make pull`.
+Ferramentas: npm audit, pip-audit, bundle-audit, govulncheck, OWASP Dependency-Check, Snyk, Dependabot config.
+
+Templates CI prontos em `ci/` para Bitbucket, GitHub Actions e GitLab.
 
 ---
 
-## Requisitos
+## Legacy Doc (documentacao de codigo legado)
 
-- Docker + Docker Compose
-- ~8GB RAM disponivel (se usar `make up` com SonarQube + DefectDojo)
-- ~3GB disco (se usar `make build` com container unico)
-- ~15GB disco (se usar `make pull` com ferramentas separadas)
-- Git
-- jq (para geracao do relatorio HTML)
+Analisa um codebase sem documentacao e gera docs automaticamente usando LLM. Roda 100% local e open source com Ollama.
 
----
+```bash
+# Setup (uma vez - instala Ollama + modelos)
+make ollama-setup
 
-## Estrutura do Projeto
+# Gerar documentacao
+make legacy-doc REPO=./codigo-legado
 
+# Modelo menor (8GB RAM)
+make legacy-doc REPO=./codigo-legado MODEL=qwen2.5-coder:7b
 ```
-SECops/
-├── config/
-│   ├── semgrep-rules.yml       # Regras custom SAST
-│   └── .sops.yaml              # Config de encriptacao SOPS
-├── docs/                       # Documentacao adicional
-├── scripts/
-│   ├── scan.sh                 # Orquestrador (ferramentas separadas)
-│   ├── scan-local.sh           # Orquestrador (container unico)
-│   ├── report-html.sh          # Gerador de relatorio HTML
-│   ├── audit-config.sh         # Auditoria de .env, .gitignore
-│   ├── import-defectdojo.sh    # Importa reports no DefectDojo
-│   ├── vault.sh                # Operacoes com Vault
-│   ├── sops.sh                 # Operacoes com SOPS
-│   ├── clear.sh                # Limpeza completa do Docker
-│   └── pre-commit              # Git hook de seguranca
-├── test-vulnerable-app/        # App vulneravel para testes
-├── reports/                    # Output dos scans
-├── infra/                      # Terraform para deploy EC2
-├── docker-compose.yml          # Infra (SonarQube, DefectDojo, Vault)
-├── Dockerfile.scanner          # Imagem unica com todas as ferramentas
-└── Makefile                    # Atalhos
-```
+
+Gera: README.md, ARCHITECTURE.md, SECURITY-REVIEW.md
+
+Tambem suporta OpenAI, OpenRouter e AWS Bedrock se preferir.
 
 ---
 
@@ -222,6 +175,25 @@ bash scripts/sops.sh decrypt secrets.yml
 
 ---
 
+## Deploy Centralizado (EC2)
+
+Sobe o SecOps numa EC2 para centralizar findings de todos os projetos da equipe ao longo do tempo.
+
+```bash
+# Via Terraform
+cd infra/ && terraform apply
+
+# Via script (SSH na EC2)
+bash infra/setup-ec2.sh
+
+# Scan remoto (dev local -> EC2)
+make scan-remote REPO=./meu-app SERVER=<IP_DA_EC2>
+```
+
+DefectDojo na EC2 acumula findings e gera metricas: MTTR, tendencias, findings por sprint.
+
+---
+
 ## Integracao com VSCode
 
 - Semgrep sublinha XSS/SQLi enquanto digita
@@ -235,6 +207,103 @@ chmod +x .git/hooks/pre-commit
 
 ---
 
+## Resultado esperado
+
+Apos executar `make scan REPO=./test-vulnerable-app`, o pipeline gera:
+
+```
+reports/20260525_093216/
+├── report.html            <-- Relatorio visual (abrir no navegador)
+├── audit-config.json      # .env expostos, .gitignore, chaves privadas
+├── gitleaks.json          # Secrets no historico git
+├── trufflehog.json        # Secrets no filesystem
+├── semgrep.json           # SAST (XSS, SQLi, RCE)
+├── bandit.json            # SAST Python
+├── trivy-fs.json          # SCA (CVEs em dependencias)
+├── grype.json             # SCA
+├── syft-sbom.json         # SBOM (inventario de dependencias)
+├── osv-scanner.json       # CVEs (Google OSV database)
+├── checkov.json           # IaC (Terraform, Dockerfile)
+├── hadolint-Dockerfile.txt # Lint de Dockerfile
+└── ...
+```
+
+---
+
+## Exportar PDF
+
+1. Abra o `report.html` no navegador
+2. Clique no botao "Exportar PDF"
+3. No dialogo de impressao, selecione "Salvar como PDF"
+4. O PDF gerado pode ser armazenado para auditoria
+
+---
+
+## Limpeza
+
+```bash
+make clear
+```
+
+Remove todos os containers, volumes e imagens (~15GB liberados). Para usar novamente, execute `make build` ou `make pull`.
+
+---
+
+## Requisitos
+
+- Docker + Docker Compose
+- ~8GB RAM disponivel (se usar `make up` com SonarQube + DefectDojo)
+- ~3GB disco (se usar `make build` com container unico)
+- ~15GB disco (se usar `make pull` com ferramentas separadas)
+- Git
+- jq (para geracao do relatorio HTML)
+
+Para o legacy-doc com Ollama:
+- ~16GB RAM (modelo 14B) ou ~8GB RAM (modelo 7B)
+- GPU NVIDIA opcional (acelera geracao)
+
+---
+
+## Estrutura do Projeto
+
+```
+SECops/
+├── config/
+│   ├── semgrep-rules.yml       # Regras custom SAST
+│   ├── .sops.yaml              # Config de encriptacao SOPS
+│   └── oh-my-openagent.json    # Config multi-agente para legacy-doc
+├── ci/
+│   ├── bitbucket-pipelines.yml # Template Bitbucket
+│   ├── github-actions.yml      # Template GitHub Actions
+│   └── gitlab-ci.yml           # Template GitLab CI
+├── docs/                       # Documentacao completa
+├── scripts/
+│   ├── scan.sh                 # Orquestrador principal (14 etapas)
+│   ├── scan-local.sh           # Orquestrador (container unico)
+│   ├── scan-remote.sh          # Scan remoto (envia para EC2)
+│   ├── audit-config.sh         # Auditoria de .env, .gitignore
+│   ├── dep-audit.sh            # Analise profunda de dependencias
+│   ├── dep-audit-docker.sh     # Dep-audit (entrypoint container)
+│   ├── legacy-doc.sh           # Documentacao de codigo legado
+│   ├── setup-ollama.sh         # Setup Ollama + modelos
+│   ├── import-defectdojo.sh    # Importa reports no DefectDojo
+│   ├── report-html.sh          # Gerador de relatorio HTML
+│   ├── vault.sh                # Operacoes com Vault
+│   ├── sops.sh                 # Operacoes com SOPS
+│   ├── clear.sh                # Limpeza completa do Docker
+│   └── pre-commit              # Git hook de seguranca
+├── infra/
+│   ├── main.tf                 # Terraform para EC2
+│   └── setup-ec2.sh            # Bootstrap da EC2
+├── reports/                    # Output dos scans
+├── docker-compose.yml          # Infra (SonarQube, DefectDojo, Vault)
+├── docker-compose.ollama.yml   # Ollama (LLM local)
+├── Dockerfile.dep-audit        # Imagem dep-audit para CI
+└── Makefile                    # Atalhos
+```
+
+---
+
 ## Documentacao
 
 | Doc | Conteudo |
@@ -244,4 +313,5 @@ chmod +x .git/hooks/pre-commit
 | [docs/VAULT-SOPS.md](docs/VAULT-SOPS.md) | Gerenciamento de secrets |
 | [docs/VSCODE-INTEGRACAO.md](docs/VSCODE-INTEGRACAO.md) | Integracao com IDE |
 | [docs/DEPLOY-EC2.md](docs/DEPLOY-EC2.md) | Deploy na AWS EC2 |
-| [docs/DEP-AUDIT.md](docs/DEP-AUDIT.md) | Análise profunda de dependências |
+| [docs/DEP-AUDIT.md](docs/DEP-AUDIT.md) | Analise profunda de dependencias |
+| [docs/LEGACY-DOC.md](docs/LEGACY-DOC.md) | Documentacao de codigo legado |
