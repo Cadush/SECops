@@ -1,0 +1,45 @@
+# Bitbucket Pipelines - SecOps Dependency Audit
+# Copiar para: bitbucket-pipelines.yml na raiz do seu projeto
+
+image: secops/dep-audit:latest
+
+pipelines:
+  default:
+    - step:
+        name: "Dependency Audit"
+        caches:
+          - docker
+          - node
+          - pip
+        script:
+          - dep-audit /src --output /reports --fail-on high
+        artifacts:
+          - reports/**
+
+  # Scan com Snyk (precisa configurar SNYK_TOKEN nas variáveis do repo)
+  custom:
+    dep-audit-full:
+      - step:
+          name: "Full Dependency Audit (com Snyk)"
+          script:
+            - dep-audit /src --snyk-token $SNYK_TOKEN --output /reports --fail-on critical
+          artifacts:
+            - reports/**
+
+  # Scan semanal agendado
+  schedules:
+    - cron: "0 8 * * 1"  # Segunda às 8h
+      step:
+        name: "Weekly Dependency Scan"
+        script:
+          - dep-audit /src --snyk-token $SNYK_TOKEN --output /reports
+        artifacts:
+          - reports/**
+
+definitions:
+  caches:
+    pip:
+      key:
+        files:
+          - requirements.txt
+      path: ~/.cache/pip

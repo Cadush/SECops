@@ -1,0 +1,53 @@
+# GitHub Actions - SecOps Dependency Audit
+# Copiar para: .github/workflows/dep-audit.yml
+
+name: Dependency Audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 8 * * 1" # Semanal
+
+jobs:
+  dep-audit:
+    runs-on: ubuntu-latest
+    container:
+      image: secops/dep-audit:latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Dependency Audit
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          dep-audit . \
+            --output /tmp/reports \
+            --fail-on high \
+            $([ -n "$SNYK_TOKEN" ] && echo "--snyk-token $SNYK_TOKEN")
+
+      - name: Upload Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dep-audit-reports
+          path: /tmp/reports/
+
+      - name: Upload to DefectDojo
+        if: always() && vars.DEFECTDOJO_URL != ''
+        env:
+          DEFECTDOJO_URL: ${{ vars.DEFECTDOJO_URL }}
+          DEFECTDOJO_TOKEN: ${{ secrets.DEFECTDOJO_TOKEN }}
+        run: |
+          for report in /tmp/reports/*.json; do
+            [ -f "$report" ] || continue
+            curl -s -X POST "$DEFECTDOJO_URL/api/v2/import-scan/" \
+              -H "Authorization: Token $DEFECTDOJO_TOKEN" \
+              -F "scan_type=Generic Findings Import" \
+              -F "file=@$report" \
+              -F "engagement=1" \
+              -F "active=true" || true
+          done

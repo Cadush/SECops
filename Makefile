@@ -62,6 +62,21 @@ dep-audit:
 	@test -n "$(REPO)" || (echo "Uso: make dep-audit REPO=<path> [SNYK_TOKEN=<token>]" && exit 1)
 	bash scripts/dep-audit.sh $(REPO) $(if $(SNYK_TOKEN),--snyk-token $(SNYK_TOKEN),)
 
+# Build da imagem dep-audit para CI/CD
+dep-audit-build:
+	docker build -t secops/dep-audit:latest -f Dockerfile.dep-audit .
+
+# Rodar dep-audit via container (para integrar em pipelines)
+dep-audit-docker:
+	@test -n "$(REPO)" || (echo "Uso: make dep-audit-docker REPO=<path> [SNYK_TOKEN=<token>] [FAIL_ON=high]" && exit 1)
+	docker run --rm \
+		-v $(shell realpath $(REPO)):/src \
+		-v $(shell pwd)/reports:/reports \
+		$(if $(SNYK_TOKEN),-e SNYK_TOKEN=$(SNYK_TOKEN),) \
+		secops/dep-audit:latest /src \
+		$(if $(SNYK_TOKEN),--snyk-token $(SNYK_TOKEN),) \
+		$(if $(FAIL_ON),--fail-on $(FAIL_ON),)
+
 vault-setup:
 	bash scripts/vault.sh setup
 

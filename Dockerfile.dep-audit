@@ -1,0 +1,48 @@
+FROM node:20-slim AS base
+
+# Instalar dependências do sistema
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    jq \
+    python3 \
+    python3-pip \
+    python3-venv \
+    ruby \
+    openjdk-17-jre-headless \
+    unzip \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# pip-audit
+RUN python3 -m pip install --break-system-packages pip-audit
+
+# bundle-audit
+RUN gem install bundler-audit --no-document
+
+# OWASP Dependency-Check
+ENV DC_VERSION=10.0.3
+RUN curl -sL "https://github.com/jeremylong/DependencyCheck/releases/download/v${DC_VERSION}/dependency-check-${DC_VERSION}-release.zip" -o /tmp/dc.zip \
+    && unzip /tmp/dc.zip -d /opt \
+    && rm /tmp/dc.zip \
+    && chmod +x /opt/dependency-check/bin/dependency-check.sh
+ENV PATH="/opt/dependency-check/bin:${PATH}"
+
+# Snyk CLI
+RUN npm install -g snyk --omit=dev
+
+# Go + govulncheck
+COPY --from=golang:1.22-alpine /usr/local/go /usr/local/go
+ENV PATH="/usr/local/go/bin:/root/go/bin:${PATH}"
+RUN go install golang.org/x/vuln/cmd/govulncheck@latest
+
+# Composer (PHP)
+COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
+
+WORKDIR /app
+
+COPY scripts/dep-audit-docker.sh /usr/local/bin/dep-audit
+RUN chmod +x /usr/local/bin/dep-audit
+
+ENTRYPOINT ["dep-audit"]
+CMD ["--help"]
