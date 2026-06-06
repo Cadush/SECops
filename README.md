@@ -244,3 +244,4 @@ chmod +x .git/hooks/pre-commit
 | [docs/VAULT-SOPS.md](docs/VAULT-SOPS.md) | Gerenciamento de secrets |
 | [docs/VSCODE-INTEGRACAO.md](docs/VSCODE-INTEGRACAO.md) | Integracao com IDE |
 | [docs/DEPLOY-EC2.md](docs/DEPLOY-EC2.md) | Deploy na AWS EC2 |
+| [docs/DEP-AUDIT.md](docs/DEP-AUDIT.md) | Análise profunda de dependências |

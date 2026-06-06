@@ -58,6 +58,10 @@ scan-remote:
 	@test -n "$(SERVER)" || (echo "Uso: make scan-remote REPO=<path> SERVER=<ip>" && exit 1)
 	bash scripts/scan-remote.sh $(REPO) --server $(SERVER)
 
+dep-audit:
+	@test -n "$(REPO)" || (echo "Uso: make dep-audit REPO=<path> [SNYK_TOKEN=<token>]" && exit 1)
+	bash scripts/dep-audit.sh $(REPO) $(if $(SNYK_TOKEN),--snyk-token $(SNYK_TOKEN),)
+
 vault-setup:
 	bash scripts/vault.sh setup
 
