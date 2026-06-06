@@ -123,19 +123,102 @@ CVE-2022-24999 (High)
 
 ---
 
-## Quick Start
+## Como rodar
+
+Existem 3 formas de usar o dep-audit. Todas funcionam localmente.
+
+### Opcao 1: Script direto (ferramentas separadas)
+
+Cada ferramenta roda em seu proprio container Docker. Nao precisa buildar nada, mas puxa varias imagens na primeira execucao.
 
 ```bash
-# Scan básico (npm audit + OWASP Dependency-Check)
+# Scan basico
 make dep-audit REPO=./meu-projeto
 
-# Com Snyk (análise mais completa + monitoramento)
+# Com Snyk
 make dep-audit REPO=./meu-projeto SNYK_TOKEN=<seu-token>
+```
 
-# Ativar Dependabot
+Usa o `scripts/dep-audit.sh` que orquestra os containers individuais (node, python, owasp/dependency-check, snyk/snyk, etc).
+
+### Opcao 2: Container unico (recomendado para CI e uso frequente)
+
+Todas as ferramentas empacotadas numa unica imagem Docker (~2GB). Mais rapido depois do build inicial.
+
+```bash
+# Build da imagem (uma vez)
+make dep-audit-build
+
+# Rodar
+make dep-audit-docker REPO=./meu-projeto FAIL_ON=high
+
+# Com Snyk
+make dep-audit-docker REPO=./meu-projeto SNYK_TOKEN=xxx FAIL_ON=critical
+```
+
+### Opcao 3: Docker run direto
+
+Para quem prefere controlar o comando manualmente ou integrar em scripts proprios.
+
+```bash
+docker run --rm \
+  -v ./meu-projeto:/src \
+  -v ./reports:/reports \
+  secops/dep-audit:latest /src --fail-on high
+
+# Com Snyk
+docker run --rm \
+  -v ./meu-projeto:/src \
+  -v ./reports:/reports \
+  -e SNYK_TOKEN=xxx \
+  secops/dep-audit:latest /src --snyk-token xxx --fail-on critical
+```
+
+### Diferenca entre as opcoes
+
+| | Opcao 1 (script) | Opcao 2/3 (container unico) |
+|---|---|---|
+| Build necessario | Nao | Sim (uma vez) |
+| Tamanho em disco | ~15GB (varias imagens) | ~2GB (uma imagem) |
+| Primeira execucao | Lenta (pull de varias imagens) | Rapida (tudo ja esta na imagem) |
+| Ideal para | Uso esporadico | Uso frequente / CI/CD |
+| Flag --fail-on | Nao | Sim (quebra pipeline) |
+
+### Flag --fail-on (exit code para pipelines)
+
+| Valor | Comportamento |
+|---|---|
+| `critical` | Falha so se tiver vulnerabilidades critical |
+| `high` | Falha se tiver critical ou high |
+| `medium` | Falha se tiver critical, high ou medium |
+| `low` | Falha se tiver qualquer vulnerabilidade |
+
+Se nao informar `--fail-on`, o scan nunca falha (exit 0) independente dos findings.
+
+---
+
+## Ativar Dependabot no GitHub
+
+Apos rodar o scan, copie o arquivo gerado:
+
+```bash
 cp reports/dep-audit_*/dependabot.yml .github/dependabot.yml
 git add .github/dependabot.yml && git push
 ```
+
+---
+
+## Integracao com CI/CD
+
+Templates prontos em `ci/`:
+
+| Arquivo | Plataforma |
+|---|---|
+| `ci/bitbucket-pipelines.yml` | Bitbucket Pipelines |
+| `ci/github-actions.yml` | GitHub Actions |
+| `ci/gitlab-ci.yml` | GitLab CI |
+
+Todos usam a imagem `secops/dep-audit:latest` e a flag `--fail-on` para quebrar o build se encontrar vulnerabilidades.
 
 ---
 
