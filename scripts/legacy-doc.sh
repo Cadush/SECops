@@ -9,11 +9,21 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SOURCE="${1:?Uso: $0 <repo_path> [--output <dir>] [--provider <openai|ollama|bedrock>]}"
 SOURCE="$(realpath "$SOURCE")"
 OUTPUT=""
-PROVIDER="${LEGACY_DOC_PROVIDER:-openai}"
+PROVIDER="${LEGACY_DOC_PROVIDER:-ollama}"
 API_KEY="${OPENAI_API_KEY:-${BEDROCK_API_KEY:-${OPENROUTER_API_KEY:-}}}"
 OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
-MODEL="${LEGACY_DOC_MODEL:-gpt-4o-mini}"
+MODEL="${LEGACY_DOC_MODEL:-}"
 OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-}"
+
+# Default model por provider
+if [[ -z "$MODEL" ]]; then
+  case "$PROVIDER" in
+    ollama) MODEL="qwen2.5-coder:14b";;
+    openai) MODEL="gpt-4o-mini";;
+    openrouter) MODEL="moonshotai/kimi-k2.6";;
+    bedrock) MODEL="anthropic.claude-3-haiku-20240307-v1:0";;
+  esac
+fi
 
 shift || true
 while [[ $# -gt 0 ]]; do

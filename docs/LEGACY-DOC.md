@@ -44,52 +44,46 @@ Codigo legado tipicamente tem:
 
 ## Como rodar
 
-### Opcao 1: OpenAI (recomendado)
+### Opcao 1: Ollama local (open source, gratuito)
+
+Tudo roda na sua maquina, sem API externa, sem custo. Usa modelos open source.
 
 ```bash
-export OPENAI_API_KEY=sk-xxx
+# Setup (instala Ollama + baixa modelos)
+make ollama-setup
 
-# Gerar docs para um projeto
+# Gerar docs
 make legacy-doc REPO=./codigo-legado
 
-# Usar modelo especifico
-make legacy-doc REPO=./codigo-legado MODEL=gpt-4o
+# Usar modelo menor (mais rapido, menos RAM)
+make legacy-doc REPO=./codigo-legado MODEL=qwen2.5-coder:7b
 ```
 
-### Opcao 2: Ollama (local, sem custo)
+Modelos recomendados (open source):
 
-Roda 100% local. Precisa do Ollama instalado com um modelo baixado.
+| Modelo | Tamanho | RAM minima | Qualidade |
+|---|---|---|---|
+| qwen2.5-coder:14b | ~9GB | 16GB | Alta (default) |
+| qwen2.5-coder:7b | ~4.5GB | 8GB | Media-Alta |
+| llama3.1:8b | ~4.7GB | 8GB | Media |
+| codellama:13b | ~7GB | 16GB | Media |
+| deepseek-coder-v2:16b | ~9GB | 16GB | Alta |
+
+Se tiver GPU NVIDIA, roda muito mais rapido. Sem GPU funciona em CPU (mais lento).
+
+### Opcao 2: Ollama via Docker
+
+Se nao quiser instalar Ollama no host:
 
 ```bash
-# Instalar Ollama (se nao tiver)
-curl -fsSL https://ollama.com/install.sh | sh
+# Subir Ollama em container
+make ollama-up
 
 # Baixar modelo
-ollama pull llama3.1
+docker compose -f docker-compose.ollama.yml exec ollama ollama pull qwen2.5-coder:14b
 
 # Rodar
-make legacy-doc REPO=./codigo-legado PROVIDER=ollama MODEL=llama3.1
-```
-
-### Opcao 3: AWS Bedrock
-
-Usa Claude via AWS Bedrock. Precisa de AWS CLI configurada com acesso ao Bedrock.
-
-```bash
-make legacy-doc REPO=./codigo-legado PROVIDER=bedrock MODEL=anthropic.claude-3-haiku-20240307-v1:0
-```
-
-### Opcao 4: Script direto
-
-```bash
-# OpenAI
-OPENAI_API_KEY=sk-xxx bash scripts/legacy-doc.sh ./codigo-legado
-
-# Ollama
-LEGACY_DOC_PROVIDER=ollama LEGACY_DOC_MODEL=llama3.1 bash scripts/legacy-doc.sh ./codigo-legado
-
-# Com output customizado
-bash scripts/legacy-doc.sh ./codigo-legado --output ./minha-doc --provider openai --model gpt-4o
+make legacy-doc REPO=./codigo-legado
 ```
 
 ---
@@ -98,16 +92,33 @@ bash scripts/legacy-doc.sh ./codigo-legado --output ./minha-doc --provider opena
 
 | Provider | Modelo default | Custo | Qualidade |
 |---|---|---|---|
-| openai | gpt-4o-mini | ~$0.01 por projeto | Alta |
+| ollama | qwen2.5-coder:14b | Gratis (local) | Alta |
 | openrouter | moonshotai/kimi-k2.6 | Variavel | Alta |
-| ollama | llama3.1 | Gratis (local) | Media-Alta |
+| openai | gpt-4o-mini | ~$0.01 por projeto | Alta |
 | bedrock | claude-3-haiku | ~$0.005 por projeto | Alta |
 
 Para projetos grandes, gpt-4o ou claude-3-sonnet produzem resultacao melhor mas custam mais (~$0.10 por projeto).
 
 ---
 
-## Integracao com oh-my-openagent
+### Opcao 3: OpenAI / OpenRouter / Bedrock (pago, melhor qualidade)
+
+Se preferir usar APIs externas:
+
+```bash
+# OpenAI
+OPENAI_API_KEY=sk-xxx make legacy-doc REPO=./codigo-legado PROVIDER=openai
+
+# OpenRouter (acesso a varios modelos)
+OPENROUTER_API_KEY=sk-or-xxx make legacy-doc REPO=./codigo-legado PROVIDER=openrouter MODEL=moonshotai/kimi-k2.6
+
+# AWS Bedrock
+make legacy-doc REPO=./codigo-legado PROVIDER=bedrock MODEL=anthropic.claude-3-haiku-20240307-v1:0
+```
+
+---
+
+## Integracao com oh-my-openagent (open source)
 
 O projeto inclui uma config pronta para o oh-my-openagent em `config/oh-my-openagent.json`. Ele usa um sistema de agentes especializados via OpenRouter:
 
@@ -151,11 +162,11 @@ O fluxo do oh-my-openagent e:
 
 | Variavel | Descricao | Default |
 |---|---|---|
-| OPENAI_API_KEY | API key da OpenAI | (obrigatorio se provider=openai) |
-| OPENROUTER_API_KEY | API key do OpenRouter | (obrigatorio se provider=openrouter) |
-| LEGACY_DOC_PROVIDER | Provider LLM | openai |
-| LEGACY_DOC_MODEL | Modelo a usar | gpt-4o-mini |
+| LEGACY_DOC_PROVIDER | Provider LLM | ollama |
+| LEGACY_DOC_MODEL | Modelo a usar | qwen2.5-coder:14b (ollama) |
 | OLLAMA_URL | URL do Ollama | http://localhost:11434 |
+| OPENAI_API_KEY | API key da OpenAI | (se provider=openai) |
+| OPENROUTER_API_KEY | API key do OpenRouter | (se provider=openrouter) |
 
 ---
 

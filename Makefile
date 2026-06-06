@@ -83,6 +83,14 @@ vault-setup:
 sops-setup:
 	bash scripts/sops.sh setup
 
+ollama-setup:
+	bash scripts/setup-ollama.sh
+
+ollama-up:
+	docker compose -f docker-compose.ollama.yml up -d
+	@echo "Ollama rodando em http://localhost:11434"
+	@echo "Baixar modelo: docker compose -f docker-compose.ollama.yml exec ollama ollama pull qwen2.5-coder:14b"
+
 legacy-doc:
 	@test -n "$(REPO)" || (echo "Uso: make legacy-doc REPO=<path> [PROVIDER=openai|ollama|bedrock] [MODEL=gpt-4o-mini]" && exit 1)
 	OPENAI_API_KEY=$(OPENAI_API_KEY) LEGACY_DOC_PROVIDER=$(or $(PROVIDER),openai) LEGACY_DOC_MODEL=$(or $(MODEL),gpt-4o-mini) \
