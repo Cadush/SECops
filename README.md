@@ -1,4 +1,4 @@
-# SecOps - Pipeline de Revisao de Codigo
+# SecOps Orchestrator
 
 Orquestracao de **20+ ferramentas open source** de seguranca para analise completa de repositorios. Um unico comando escaneia secrets, vulnerabilidades, dependencias, containers, IaC e aplicacoes web.
 
@@ -9,7 +9,7 @@ Todos os direitos reservados a Carlos Eduardo.
 ## O que faz
 
 ```
-Repositorio --> SecOps Pipeline --> Relatorio HTML + JSON + DefectDojo
+Repositorio --> SecOps Orchestrator --> Relatorio HTML + JSON + DefectDojo
 ```
 
 O pipeline analisa codigo em **6 camadas**:
@@ -177,7 +177,7 @@ bash scripts/sops.sh decrypt secrets.yml
 
 ## Deploy Centralizado (EC2)
 
-Sobe o SecOps numa EC2 para centralizar findings de todos os projetos da equipe ao longo do tempo.
+Sobe o SecOps Orchestrator numa EC2 para centralizar findings de todos os projetos da equipe ao longo do tempo.
 
 ```bash
 # Via Terraform
