@@ -83,6 +83,11 @@ vault-setup:
 sops-setup:
 	bash scripts/sops.sh setup
 
+legacy-doc:
+	@test -n "$(REPO)" || (echo "Uso: make legacy-doc REPO=<path> [PROVIDER=openai|ollama|bedrock] [MODEL=gpt-4o-mini]" && exit 1)
+	OPENAI_API_KEY=$(OPENAI_API_KEY) LEGACY_DOC_PROVIDER=$(or $(PROVIDER),openai) LEGACY_DOC_MODEL=$(or $(MODEL),gpt-4o-mini) \
+		bash scripts/legacy-doc.sh $(REPO) $(if $(OUTPUT),--output $(OUTPUT),)
+
 clear:
 	bash scripts/clear.sh
 
